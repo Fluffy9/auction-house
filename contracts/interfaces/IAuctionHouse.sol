@@ -105,7 +105,8 @@ interface IAuctionHouse {
         uint256 reservePrice,
         address payable curator,
         uint8 curatorFeePercentages,
-        address auctionCurrency
+        address auctionCurrency,
+        uint256 id1155
     ) external returns (uint256);
 
     function setAuctionApproval(uint256 auctionId, bool approved) external;

@@ -5,10 +5,12 @@ pragma experimental ABIEncoderV2;
 
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { IERC721, IERC165 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/ERC1155Holder.sol";
+import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {Counters} from "@openzeppelin/contracts/utils/Counters.sol";
+import { Counters } from "@openzeppelin/contracts/utils/Counters.sol";
 import { IMarket, Decimal } from "@zoralabs/core/dist/contracts/interfaces/IMarket.sol";
 import { IMedia } from "@zoralabs/core/dist/contracts/interfaces/IMedia.sol";
 import { IAuctionHouse } from "./interfaces/IAuctionHouse.sol";
@@ -27,7 +29,7 @@ interface IMediaExtended is IMedia {
 /**
  * @title An open auction house, enabling collectors and curators to run their own auctions
  */
-contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
+contract AuctionHouse is IAuctionHouse, ReentrancyGuard, ERC1155Holder {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using Counters for Counters.Counter;
@@ -47,7 +49,8 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
     // A mapping of all of the auctions currently running.
     mapping(uint256 => IAuctionHouse.Auction) public auctions;
 
-    bytes4 constant interfaceId = 0x80ac58cd; // 721 interface id
+    bytes4 constant interfaceId721 = 0x80ac58cd; // 721 interface id
+    bytes4 constant interfaceId1155 = 0xd9b67a26;
 
     Counters.Counter private _auctionIdTracker;
 
@@ -64,7 +67,7 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
      */
     constructor(address _zora, address _weth) public {
         require(
-            IERC165(_zora).supportsInterface(interfaceId),
+            IERC165(_zora).supportsInterface(interfaceId721),
             "Doesn't support NFT interface"
         );
         zora = _zora;
@@ -72,6 +75,54 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
         timeBuffer = 15 * 60; // extend 15 minutes after every bid made in last 15 minutes
         minBidIncrementPercentage = 5; // 5%
     }
+    // function createAuction1155(
+    //     uint256 tokenId, 
+    //     address tokenContract, 
+    //     uint256 duration, 
+    //     uint256 reservePrice, 
+    //     address payable curator, 
+    //     uint8 curatorFeePercentage, 
+    //     address auctionCurrency, 
+    //     uint256 id1155
+    // ) public override nonReentrant returns (uint256) {
+    //     require(
+    //         IERC165(tokenContract).supportsInterface(interfaceId1155),
+    //         "tokenContract does not support ERC1155 interface"
+    //     );
+    //     require(curatorFeePercentage < 100, "curatorFeePercentage must be less than 100");
+    //     // check that the owner has at least one of the token or is approved for at least one of the token
+    //     require(IERC1155(tokenContract).balanceOf(msg.sender, id1155) >= 1, "Caller must have at least one of the token");
+    //     uint256 auctionId = _auctionIdTracker.current();
+
+    //     auctions[auctionId] = Auction({
+    //         tokenId: tokenId,
+    //         tokenContract: tokenContract,
+    //         approved: false,
+    //         amount: 0,
+    //         duration: duration,
+    //         firstBidTime: 0,
+    //         reservePrice: reservePrice,
+    //         curatorFeePercentage: curatorFeePercentage,
+    //         tokenOwner: msg.sender,
+    //         bidder: address(0),
+    //         curator: curator,
+    //         auctionCurrency: auctionCurrency
+    //     });
+
+    //     IERC1155(tokenContract).safeTransferFrom(msg.sender, address(this), tokenId, 1, new bytes(0));
+
+    //     _auctionIdTracker.increment();
+
+    //     emit AuctionCreated(auctionId, tokenId, tokenContract, duration, reservePrice, msg.sender, curator, curatorFeePercentage, auctionCurrency);
+
+
+    //     if(auctions[auctionId].curator == address(0) || curator == msg.sender) {
+    //         _approveAuction(auctionId, true);
+    //     }
+
+    //     return auctionId;
+
+    // }
 
     /**
      * @notice Create an auction.
@@ -85,15 +136,24 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
         uint256 reservePrice,
         address payable curator,
         uint8 curatorFeePercentage,
-        address auctionCurrency
+        address auctionCurrency,
+        uint256 id1155
     ) public override nonReentrant returns (uint256) {
+        bool is721 = IERC165(tokenContract).supportsInterface(interfaceId721);
         require(
-            IERC165(tokenContract).supportsInterface(interfaceId),
-            "tokenContract does not support ERC721 interface"
+            IERC165(tokenContract).supportsInterface(interfaceId721) || IERC165(tokenContract).supportsInterface(interfaceId1155),
+            "tokenContract does not support the ERC721 or ERC1155 interface"
         );
         require(curatorFeePercentage < 100, "curatorFeePercentage must be less than 100");
-        address tokenOwner = IERC721(tokenContract).ownerOf(tokenId);
-        require(msg.sender == IERC721(tokenContract).getApproved(tokenId) || msg.sender == tokenOwner, "Caller must be approved or owner for token id");
+        address tokenOwner = msg.sender;
+        if(is721){
+            tokenOwner = IERC721(tokenContract).ownerOf(tokenId);
+            require(msg.sender == IERC721(tokenContract).getApproved(tokenId) || msg.sender == tokenOwner, "Caller must be approved or owner for token id");
+        }
+        else{
+            //     check that the owner has at least one of the token or is approved for at least one of the token
+            require(IERC1155(tokenContract).balanceOf(msg.sender, id1155) >= 1, "Caller must have at least one of the token");
+        }
         uint256 auctionId = _auctionIdTracker.current();
 
         auctions[auctionId] = Auction({
@@ -110,8 +170,12 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
             curator: curator,
             auctionCurrency: auctionCurrency
         });
-
-        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);
+        if(is721){
+            IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);
+        }
+        else {
+            IERC1155(tokenContract).safeTransferFrom(msg.sender, address(this), tokenId, 1, new bytes(0));
+        }
 
         _auctionIdTracker.increment();
 
@@ -273,10 +337,22 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
             }
         } else {
             // Otherwise, transfer the token to the winner and pay out the participants below
-            try IERC721(auctions[auctionId].tokenContract).safeTransferFrom(address(this), auctions[auctionId].bidder, auctions[auctionId].tokenId) {} catch {
-                _handleOutgoingBid(auctions[auctionId].bidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);
-                _cancelAuction(auctionId);
-                return;
+            // Check to see if this is an ERC721 token
+            bool is721 = IERC165(auctions[auctionId].tokenContract).supportsInterface(interfaceId721);
+            if(is721){
+                try IERC721(auctions[auctionId].tokenContract).safeTransferFrom(address(this), auctions[auctionId].bidder, auctions[auctionId].tokenId) {} catch {
+                    _handleOutgoingBid(auctions[auctionId].bidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);
+                    _cancelAuction(auctionId);
+                    return;
+                }
+            }
+            // If not it must be an ERC1155 token
+            else {
+                try IERC1155(auctions[auctionId].tokenContract).safeTransferFrom(address(this), auctions[auctionId].bidder, auctions[auctionId].tokenId, 1, new bytes(0)) {} catch {
+                    _handleOutgoingBid(auctions[auctionId].bidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);
+                    _cancelAuction(auctionId);
+                    return;
+                }
             }
         }
 
@@ -361,7 +437,13 @@ contract AuctionHouse is IAuctionHouse, ReentrancyGuard {
 
     function _cancelAuction(uint256 auctionId) internal {
         address tokenOwner = auctions[auctionId].tokenOwner;
-        IERC721(auctions[auctionId].tokenContract).safeTransferFrom(address(this), tokenOwner, auctions[auctionId].tokenId);
+        if(IERC165(auctions[auctionId].tokenContract).supportsInterface(interfaceId721)) {
+            IERC721(auctions[auctionId].tokenContract).safeTransferFrom(address(this), tokenOwner, auctions[auctionId].tokenId);
+        }
+        else{
+            IERC1155(auctions[auctionId].tokenContract).safeTransferFrom(address(this), tokenOwner, auctions[auctionId].tokenId, 1, new bytes(0));
+
+        }
 
         emit AuctionCanceled(auctionId, auctions[auctionId].tokenId, auctions[auctionId].tokenContract, tokenOwner);
         delete auctions[auctionId];

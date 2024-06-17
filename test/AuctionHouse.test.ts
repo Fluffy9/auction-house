@@ -33,7 +33,9 @@ describe("AuctionHouse", () => {
     const nfts = await deployOtherNFTs();
     market = contracts.market;
     media = contracts.media;
-    weth = await deployWETH();
+    let tempweth = (await deployWETH());
+    console.log(`weth is ${tempweth} and type of ${typeof tempweth}`)
+    weth = tempweth;
     badERC721 = nfts.bad;
     testERC721 = nfts.test;
   });
@@ -61,7 +63,8 @@ describe("AuctionHouse", () => {
       reservePrice,
       curator,
       5,
-      currency
+      currency,
+      0
     );
   }
 
@@ -116,7 +119,8 @@ describe("AuctionHouse", () => {
           reservePrice,
           curator.address,
           5,
-          "0x0000000000000000000000000000000000000000"
+          "0x0000000000000000000000000000000000000000",
+          0
         )
       ).eventually.rejectedWith(
         revert`tokenContract does not support ERC721 interface`
@@ -137,7 +141,8 @@ describe("AuctionHouse", () => {
             reservePrice,
             curator.address,
             5,
-            "0x0000000000000000000000000000000000000000"
+            "0x0000000000000000000000000000000000000000",
+            0
           )
       ).eventually.rejectedWith(
         revert`Caller must be approved or owner for token id`
@@ -161,7 +166,8 @@ describe("AuctionHouse", () => {
             reservePrice,
             curator.address,
             5,
-            "0x0000000000000000000000000000000000000000"
+            "0x0000000000000000000000000000000000000000",
+            0
           )
       ).eventually.rejectedWith(
         revert`ERC721: owner query for nonexistent token`
@@ -182,7 +188,8 @@ describe("AuctionHouse", () => {
           reservePrice,
           curator.address,
           100,
-          "0x0000000000000000000000000000000000000000"
+          "0x0000000000000000000000000000000000000000",
+          0
         )
       ).eventually.rejectedWith(
         revert`curatorFeePercentage must be less than 100`

@@ -96,7 +96,8 @@ describe("integration", () => {
           TENTH_ETH,
           ethers.constants.AddressZero,
           0,
-          ethers.constants.AddressZero
+          ethers.constants.AddressZero,
+          0
         );
       await auction.connect(bidderA).createBid(0, ONE_ETH, { value: ONE_ETH });
       await auction.connect(bidderB).createBid(0, TWO_ETH, { value: TWO_ETH });
@@ -167,11 +168,12 @@ describe("integration", () => {
           TENTH_ETH,
           curatorAddress,
           20,
-          ethers.constants.AddressZero
+          ethers.constants.AddressZero,
+          0
         );
       await auction.connect(curator).setAuctionApproval(0, true);
       await auction.connect(bidderA).createBid(0, ONE_ETH, { value: ONE_ETH });
-      await auction.connect(bidderB).createBid(0, TWO_ETH, { value: TWO_ETH });
+      await auction.connect(bidderB).createBid(0, TWO_ETH, { value: BigNumber.from("2") });
       await ethers.provider.send("evm_setNextBlockTimestamp", [
         Date.now() + ONE_DAY,
       ]);
@@ -251,7 +253,8 @@ describe("integration", () => {
           TENTH_ETH,
           ethers.constants.AddressZero,
           20,
-          weth.address
+          weth.address,
+          0
         );
       await weth.connect(bidderA).deposit({ value: ONE_ETH });
       await weth.connect(bidderA).approve(auction.address, ONE_ETH);
@@ -314,7 +317,8 @@ describe("integration", () => {
           TENTH_ETH,
           curator.address,
           20,
-          weth.address
+          weth.address,
+          0
         );
       await auction.connect(curator).setAuctionApproval(0, true);
       await weth.connect(bidderA).deposit({ value: ONE_ETH });
@@ -387,7 +391,8 @@ describe("integration", () => {
           TENTH_ETH,
           curatorAddress,
           20,
-          ethers.constants.AddressZero
+          ethers.constants.AddressZero,
+          0
         );
       await auction.connect(curator).setAuctionApproval(0, true);
       await auction.connect(bidderA).createBid(0, ONE_ETH, { value: ONE_ETH });
